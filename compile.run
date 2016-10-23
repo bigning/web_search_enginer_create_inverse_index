@@ -1,3 +1,3 @@
-g++ -g generate_posting.cpp -lz -lboost_iostreams `pkg-config libxml++-2.6 --cflags --libs` -o posting_generator
+g++  generate_posting.cpp -lz -lboost_iostreams `pkg-config libxml++-2.6 --cflags --libs` -o posting_generator
 g++ assign_new_word_id.cpp -o assign_new_word_id
 g++ generate_inverse_index.cpp -o inverse_index_generator

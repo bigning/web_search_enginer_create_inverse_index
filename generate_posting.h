@@ -20,7 +20,8 @@ public:
             std::string& new_text);
     void generate_postings();
     void get_wet_filenames();
-    std::map<std::string, std::string> get_next_sector(std::istream& input);
+    bool get_next_sector(std::istream& input,
+            std::map<std::string, std::string>& res);
 
 private:
     void parse_index_file(const char* filename, std::vector<IndexInfo>& indices);

@@ -5,6 +5,7 @@
 #include <libxml/tree.h>
 #include <libxml/HTMLparser.h>
 #include <libxml++/libxml++.h>
+#include <exception>
 
 #include <boost/iostreams/filtering_streambuf.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
@@ -53,22 +54,38 @@ void GeneratePosting::parse_index_file(const char* filename,
     file.close();    
 }
 
-std::map<std::string, std::string> GeneratePosting::get_next_sector(std::istream& input) {
-    std::map<std::string, std::string> res;
+bool GeneratePosting::get_next_sector(std::istream& input, std::map<std::string, std::string>& res) {
+    //std::map<std::string, std::string> res;
     std::string line;
+    if (input.eof()) { 
+        return false; 
+    }
     while (std::getline(input, line)) {
         if (line.size() > 1) break;
+        if (input.eof()) { 
+            return false; 
+        }
     }
     if (line == "WARC/1.0\r") {
         std::getline(input, line);
+        if (input.eof()) { 
+            return false; 
+        }
     }
     int length = 0;
     int line_num = 0;
     std::string text;
+    if (input.eof()) { 
+        return false; 
+    }
     while (true) {
+        line_num++;
         std::vector<std::string> split_vec;
         boost::split(split_vec, line, boost::is_any_of(": "), boost::token_compress_on);
         boost::trim_left(split_vec[1]);
+        if (split_vec[1].size() <= 1) {
+            continue;
+        }
         split_vec[1] = split_vec[1].substr(0, split_vec[1].size() - 1);
         if (split_vec[0] == "Content-Type") {
             res.insert(std::pair<std::string, std::string>(split_vec[0], 
@@ -83,20 +100,24 @@ std::map<std::string, std::string> GeneratePosting::get_next_sector(std::istream
             std::getline(input, line);
             break;
         }
-        if (!std::getline(input, line)) return res;
-        line_num++;
+        if (!std::getline(input, line)) return false;
         if (line_num == 50) {
             std::cout << "[EROOR]: parse wet data error" << std::endl;
             break;
         }
     }
 
+    if (input.eof()) {
+        return false;
+    }
+
+    if (length <= 0) return false;
     char* text_char = new char[length];
     input.read(text_char, length);
     text = std::string(text_char);
     res.insert(std::pair<std::string, std::string>("text", text));
     delete[] text_char;
-    return res;
+    return true;
 }
 
 void GeneratePosting::parse_data_file(int num) {
@@ -127,8 +148,17 @@ void GeneratePosting::parse_data_file(int num) {
     int valid_num = 0;
     int html_num = 0;
     while (true) {
-        std::map<std::string, std::string> sector = get_next_sector(input);
-        if (sector.size() == 0) break;
+        std::map<std::string, std::string> sector;
+        try {
+            if(!get_next_sector(input, sector)) {
+                break;
+            }
+        } catch (std::exception& e) {
+            std::cout << e.what() << std::endl;
+            std::cout << "[error1]" << std::endl;
+            exit(0);
+        }
+        if (sector.size() <= 1) break;
         //if (num_a % 1000 == 0 || num_a > 50000) std::cout << num_a << std::endl;
         if (sector["Content-Type"] != "text/plain") continue;
         //std::cout << num_a << "  " << sector["text"].size() << std::endl;
@@ -162,17 +192,28 @@ void GeneratePosting::parse_data_file(int num) {
 
         int words_num = 0;
         std::string new_text;
-        std::vector<PostingFromDoc> postings = generate_posting_from_doc(
-                text, doc_num_, words_num, new_text);
+        std::vector<PostingFromDoc> postings;
+        try {
+            postings = generate_posting_from_doc(
+                    text, doc_num_, words_num, new_text);
+        } catch (std::exception& e) {
+            std::cout << e.what() << std::endl;
+            std::cout << "[error1]" << std::endl;
+            exit(0);
+        }
 
         new_text_file_ << new_text;
 
         URLInfo url_info(doc_num_, url, words_num, 
                 data_file_name_pure, start_pos_);
         url_table_.push_back(url_info);
+        if (url_table_.size() % 1000 == 0) {
+            std::cout << "[INFO]: url table size: " << url_table_.size() << std::endl;
+        }
 
         if (url_table_.size() == 50000) {
             std::cout << "[INFO]: writing url table" << std::endl;
+            std::cout << "[INFO]: doc_num: " << doc_num_ << std::endl;
             for (int i = 0; i < url_table_.size(); i++) {
                 url_table_file_ << url_table_[i].doc_id << " " << url_table_[i].words_num <<" " << url_table_[i].url << " " << url_table_[i].data_file << " " 
                     << url_table_[i].start_pos <<  std::endl;
@@ -191,12 +232,14 @@ void GeneratePosting::parse_data_file(int num) {
 
         doc_num_++;
         if (doc_num_ >= total_doc_num_) {
+            new_text_file_.close();
             break;
         }
         start_pos_ += new_text.size();
     }
 
     std::cout << "[INFO]: writing url table" << std::endl;
+    std::cout << "[INFO]: doc_num: " << doc_num_ << std::endl;
     for (int i = 0; i < url_table_.size(); i++) {
         url_table_file_ << url_table_[i].doc_id << " " << url_table_[i].words_num <<" " << url_table_[i].url << " " << url_table_[i].data_file << " " 
             << url_table_[i].start_pos <<  std::endl;
@@ -205,14 +248,14 @@ void GeneratePosting::parse_data_file(int num) {
 
     std::cout << "[INFO]: parsing data file done! " << num << " " << data_file_name << std::endl; 
     output_file.close();
-    new_text_file_.close();
+    //new_text_file_.close();
 
     std::cout << "[DEBUG]: total postings: " << html_num << std::endl << std::endl;;
     file.close();
 }
 
 GeneratePosting::GeneratePosting() {
-    total_doc_num_ = 1000;
+    total_doc_num_ = 1000000;
 
     input_data_path_ = "../data/wet/";
     intermedia_save_path_ = "../data/postings_from_doc/";
@@ -285,8 +328,8 @@ void print_element_names(xmlNode * a_node, std::string& text){
 
 void GeneratePosting::generate_postings() {
     get_wet_filenames();
-    //for (int i = 0; i < index_file_names_.size(); i++) {
-    for (int i = 0; i < 1; i++) {
+    for (int i = 0; i < wet_files_.size(); i++) {
+    //for (int i = 0; i < 1; i++) {
         std::cout << "[INFO]: " << i << std::endl; 
         parse_data_file(i);
     }
