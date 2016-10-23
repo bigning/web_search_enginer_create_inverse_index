@@ -331,6 +331,7 @@ void GeneratePosting::generate_postings() {
     for (int i = 0; i < wet_files_.size(); i++) {
     //for (int i = 0; i < 1; i++) {
         std::cout << "[INFO]: " << i << std::endl; 
+        if (doc_num_ >= total_doc_num_) {break;}
         parse_data_file(i);
     }
 
