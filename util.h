@@ -19,9 +19,9 @@ struct URLInfo {
     int words_num;
     std::string url;
     std::string data_file;
-    int start_pos;
+    long long start_pos;
     URLInfo(int doc_id_, std::string url_, int words_num_, std::string data_file_,
-            int start_pos_): 
+            long long start_pos_): 
         doc_id(doc_id_), url(url_), words_num(words_num_), data_file(data_file_),
         start_pos(start_pos_){}
 };

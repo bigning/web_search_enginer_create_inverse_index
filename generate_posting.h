@@ -44,7 +44,7 @@ private:
     int doc_num_;
     int data_file_num_;
     int total_doc_num_;
-    int start_pos_;
+    long long start_pos_;
 };
 
 void print_element_names(xmlNode * a_node, std::string& text);
